@@ -1,0 +1,381 @@
+/* Amazon Seller Central Modern Design System */
+:root {
+  --amz-dark: #131921;
+  --amz-navy: #232f3e;
+  --amz-blue: #007185;
+  --amz-orange: #ff9900;
+  --amz-orange-hover: #e47911;
+  --amz-bg: #f8f9fa;
+  --amz-card-bg: #ffffff;
+  --amz-border: #e2e8f0;
+  --amz-text-dark: #0f1111;
+  --amz-text-muted: #565959;
+  --sidebar-width: 260px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #f1f3f6;
+  color: var(--amz-text-dark);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Outfit', 'Inter', sans-serif;
+  font-weight: 600;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* App Wrapper & Layout */
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Sidebar Styling */
+.sidebar {
+  width: var(--sidebar-width);
+  background-color: var(--amz-navy);
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1000;
+  transition: all 0.3s ease;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-brand {
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--amz-dark);
+}
+
+.sidebar-logo-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--amz-orange);
+  color: #111;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+.sidebar-nav {
+  padding: 1rem 0;
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+.nav-category {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #8d99ae;
+  padding: 0.75rem 1.5rem 0.35rem;
+  font-weight: 600;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0.8rem 1.5rem;
+  color: #d1d5db;
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border-left: 4px solid transparent;
+}
+
+.sidebar-link i {
+  font-size: 1.15rem;
+  width: 20px;
+  text-align: center;
+}
+
+.sidebar-link:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-link.active {
+  color: #ffffff;
+  background: rgba(255, 153, 0, 0.15);
+  border-left-color: var(--amz-orange);
+  font-weight: 600;
+}
+
+.sidebar-link.active i {
+  color: var(--amz-orange);
+}
+
+.sidebar-footer {
+  padding: 1.2rem 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Main Content Wrapper */
+.main-wrapper {
+  margin-left: var(--sidebar-width);
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  transition: margin-left 0.3s ease;
+}
+
+/* Top Navbar */
+.top-navbar {
+  height: 68px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--amz-border);
+  padding: 0 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 900;
+}
+
+/* Page Content Area */
+.page-container {
+  padding: 1.75rem 2rem;
+  flex-grow: 1;
+}
+
+/* Cards */
+.amz-card {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid var(--amz-border);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.amz-card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+}
+
+/* KPI Stat Cards */
+.stat-card {
+  border-radius: 12px;
+  border: 1px solid var(--amz-border);
+  background: #ffffff;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  transition: all 0.25s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.06);
+}
+
+.stat-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+/* Amazon Buttons */
+.btn-amazon-primary {
+  background-color: var(--amz-orange);
+  border-color: var(--amz-orange-hover);
+  color: #111;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.55rem 1.25rem;
+  transition: all 0.2s ease;
+}
+
+.btn-amazon-primary:hover, .btn-amazon-primary:focus {
+  background-color: var(--amz-orange-hover);
+  border-color: #b15d0d;
+  color: #111;
+  transform: translateY(-1px);
+}
+
+.btn-amazon-dark {
+  background-color: var(--amz-navy);
+  border-color: var(--amz-dark);
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.55rem 1.25rem;
+}
+
+.btn-amazon-dark:hover {
+  background-color: var(--amz-dark);
+  color: #ffffff;
+}
+
+/* Status Badges */
+.badge-pending {
+  background-color: #fef3c7;
+  color: #92400e;
+  font-weight: 600;
+}
+.badge-confirmed {
+  background-color: #e0e7ff;
+  color: #3730a3;
+  font-weight: 600;
+}
+.badge-shipped {
+  background-color: #e0f2fe;
+  color: #0369a1;
+  font-weight: 600;
+}
+.badge-delivered {
+  background-color: #dcfce7;
+  color: #166534;
+  font-weight: 600;
+}
+.badge-cancelled {
+  background-color: #fee2e2;
+  color: #991b1b;
+  font-weight: 600;
+}
+
+/* Custom Table Styles */
+.amz-table {
+  width: 100%;
+  margin-bottom: 0;
+  vertical-align: middle;
+}
+
+.amz-table thead th {
+  background-color: #f8fafc;
+  color: #475569;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  border-bottom: 2px solid var(--amz-border);
+  padding: 0.85rem 1rem;
+}
+
+.amz-table tbody td {
+  padding: 1rem 1rem;
+  border-bottom: 1px solid var(--amz-border);
+  font-size: 0.92rem;
+}
+
+.amz-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+/* Product thumbnail */
+.product-img-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--amz-border);
+  background-color: #f8fafc;
+}
+
+/* Category Filter Pills */
+.category-pill {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  border-radius: 20px;
+  padding: 0.35rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.category-pill:hover {
+  border-color: var(--amz-orange);
+  color: var(--amz-dark);
+}
+
+.category-pill.active {
+  background: var(--amz-navy);
+  border-color: var(--amz-navy);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Ratings Stars */
+.rating-stars {
+  color: #ffa41c;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Modal Styling */
+.modal-content {
+  border-radius: 16px;
+  border: none;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--amz-border);
+  padding: 1.25rem 1.5rem;
+  background-color: #fafbfc;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 992px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .main-wrapper {
+    margin-left: 0;
+  }
+}

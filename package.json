@@ -1,0 +1,13 @@
+{
+  "name": "amazon-seller-dashboard-mern",
+  "version": "1.0.0",
+  "description": "Amazon Seller Dashboard Web Application - Full MERN Stack with MVC Architecture",
+  "scripts": {
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm run dev",
+    "seed": "cd server && npm run seed"
+  },
+  "keywords": ["mern", "amazon", "seller", "dashboard", "mvc", "mongodb", "express", "react", "node"],
+  "author": "Mohit",
+  "license": "ISC"
+}
