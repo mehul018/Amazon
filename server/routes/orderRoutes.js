@@ -11,18 +11,23 @@ const {
   deleteOrder
 } = require('../controllers/orderController');
 
-// GET /api/orders - Get orders (supports ?status=&search=)
-// POST /api/orders - Create an order
+const { protect, verifiedSellerOnly } = require('../middleware/authMiddleware');
+
+// All order endpoints require authentication
+router.use(protect);
+
+// GET /api/orders - Get orders (filtered by seller for sellers, all/filtered for admin)
+// POST /api/orders - Create an order (Verified Seller Only)
 router.route('/')
   .get(getOrders)
-  .post(createOrder);
+  .post(verifiedSellerOnly, createOrder);
 
 // GET /api/orders/:id - Get order details
-// PUT /api/orders/:id - Update order status
-// DELETE /api/orders/:id - Delete order
+// PUT /api/orders/:id - Update order status (Verified Seller Only)
+// DELETE /api/orders/:id - Delete order (Verified Seller Only)
 router.route('/:id')
   .get(getOrderById)
-  .put(updateOrderStatus)
-  .delete(deleteOrder);
+  .put(verifiedSellerOnly, updateOrderStatus)
+  .delete(verifiedSellerOnly, deleteOrder);
 
 module.exports = router;

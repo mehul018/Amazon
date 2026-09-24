@@ -11,7 +11,7 @@ const API = axios.create({
 // Request Interceptor: Attach JWT Token if present
 API.interceptors.request.use(
   (config) => {
-    const userInfo = localStorage.getItem('seller_user');
+    const userInfo = sessionStorage.getItem('seller_user') || localStorage.getItem('seller_user');
     if (userInfo) {
       try {
         const parsed = JSON.parse(userInfo);
@@ -32,8 +32,12 @@ API.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Optional: Clear storage if token expired
-      console.warn('Session expired or unauthorized request');
+      // Clear storage if session expired or unauthorized
+      sessionStorage.removeItem('seller_user');
+      localStorage.removeItem('seller_user');
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -42,7 +46,15 @@ API.interceptors.response.use(
 // REST API Service Methods
 export const authService = {
   login: (credentials) => API.post('/auth/login', credentials),
+  register: (data) => API.post('/auth/register', data),
   getProfile: () => API.get('/auth/profile')
+};
+
+export const adminService = {
+  getSellers: (params) => API.get('/admin/sellers', { params }),
+  updateSellerVerification: (id, isVerified) => API.put(`/admin/sellers/${id}/verification`, { isVerified }),
+  getStats: () => API.get('/admin/stats'),
+  deleteSeller: (id) => API.delete(`/admin/sellers/${id}`)
 };
 
 export const productService = {
@@ -64,7 +76,8 @@ export const orderService = {
 export const customerService = {
   getAll: (params) => API.get('/customers', { params }),
   getById: (id) => API.get(`/customers/${id}`),
-  create: (data) => API.post('/customers', data)
+  create: (data) => API.post('/customers', data),
+  delete: (id) => API.delete(`/customers/${id}`)
 };
 
 export const salesService = {

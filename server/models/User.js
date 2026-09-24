@@ -25,12 +25,39 @@ const userSchema = new mongoose.Schema(
     },
     storeName: {
       type: String,
-      default: 'Amazon Super Store'
+      default: 'Amazon Seller Store'
     },
     role: {
       type: String,
       enum: ['seller', 'admin'],
       default: 'seller'
+    },
+    phone: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    category: {
+      type: String,
+      trim: true,
+      default: 'General Merchandise'
+    },
+    businessDescription: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    isVerified: {
+      type: Boolean,
+      default: false
+    },
+    verificationStatus: {
+      type: String,
+      enum: ['verified', 'unverified', 'pending'],
+      default: 'unverified'
+    },
+    verificationDate: {
+      type: Date
     }
   },
   {

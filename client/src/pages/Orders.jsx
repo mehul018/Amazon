@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { orderService } from '../services/api';
+import { orderService, customerService, productService } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AlertBanner from '../components/AlertBanner';
+import { useAuth } from '../context/AuthContext';
 
 const statusList = ['All', 'Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'];
 
 const initialOrderForm = {
+  customerId: '',
   customerName: '',
   customerEmail: '',
+  productId: '',
   product: '',
   quantity: 1,
   totalAmount: '',
@@ -17,6 +20,7 @@ const initialOrderForm = {
 };
 
 const Orders = () => {
+  const { user, isAdmin, isVerified } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -35,6 +39,8 @@ const Orders = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newOrderForm, setNewOrderForm] = useState(initialOrderForm);
   const [creatingOrder, setCreatingOrder] = useState(false);
+  const [customerList, setCustomerList] = useState([]);
+  const [productList, setProductList] = useState([]);
 
   const fetchOrders = async () => {
     try {
@@ -56,9 +62,99 @@ const Orders = () => {
     }
   };
 
+  const fetchCustomerList = async () => {
+    try {
+      const res = await customerService.getAll();
+      if (res.data?.success) {
+        setCustomerList(res.data.data);
+      }
+    } catch (err) {
+      console.error('Fetch customer list error:', err);
+    }
+  };
+
+  const fetchProductList = async () => {
+    try {
+      const params = user?._id ? { sellerId: user._id } : {};
+      const res = await productService.getAll(params);
+      if (res.data?.success) {
+        setProductList(res.data.data);
+      }
+    } catch (err) {
+      console.error('Fetch product list error:', err);
+    }
+  };
+
   useEffect(() => {
     fetchOrders();
+    fetchCustomerList();
+    fetchProductList();
   }, [selectedStatus]);
+
+  const handleCustomerSelectChange = (e) => {
+    const selectedId = e.target.value;
+    if (!selectedId) {
+      setNewOrderForm((prev) => ({
+        ...prev,
+        customerId: '',
+        customerName: '',
+        customerEmail: '',
+        shippingAddress: ''
+      }));
+      return;
+    }
+    const selectedCust = customerList.find((c) => c._id === selectedId);
+    if (selectedCust) {
+      setNewOrderForm((prev) => ({
+        ...prev,
+        customerId: selectedCust._id,
+        customerName: selectedCust.name,
+        customerEmail: selectedCust.email,
+        shippingAddress: selectedCust.address
+          ? `${selectedCust.address}, ${selectedCust.city || ''}`.trim()
+          : (selectedCust.city || '')
+      }));
+    }
+  };
+
+  const handleProductSelectChange = (e) => {
+    const selectedId = e.target.value;
+    if (!selectedId) {
+      setNewOrderForm((prev) => ({
+        ...prev,
+        productId: '',
+        product: '',
+        totalAmount: ''
+      }));
+      return;
+    }
+    const selectedProd = productList.find((p) => p._id === selectedId);
+    if (selectedProd) {
+      const qty = Number(newOrderForm.quantity || 1);
+      const computedTotal = (Number(selectedProd.price || 0) * qty).toFixed(2);
+      setNewOrderForm((prev) => ({
+        ...prev,
+        productId: selectedProd._id,
+        product: selectedProd.name,
+        totalAmount: computedTotal
+      }));
+    }
+  };
+
+  const handleQuantityChange = (qtyVal) => {
+    const num = Math.max(1, Number(qtyVal) || 1);
+    setNewOrderForm((prev) => {
+      const selectedProd = productList.find((p) => p._id === prev.productId);
+      const computedTotal = selectedProd
+        ? (Number(selectedProd.price || 0) * num).toFixed(2)
+        : prev.totalAmount;
+      return {
+        ...prev,
+        quantity: num,
+        totalAmount: computedTotal
+      };
+    });
+  };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -66,11 +162,17 @@ const Orders = () => {
   };
 
   const handleStatusChange = async (orderId, newStatus) => {
+    if (!isVerified) {
+      setError('Action Restricted: Your seller account is unverified. Admin verification is required to update order status.');
+      return;
+    }
     try {
       setUpdatingId(orderId);
       await orderService.updateStatus(orderId, newStatus);
       setSuccessMsg(`Order status updated to ${newStatus}`);
       fetchOrders();
+      fetchProductList();
+      fetchCustomerList();
     } catch (err) {
       console.error('Update status error:', err);
       alert('Failed to update order status');
@@ -81,11 +183,18 @@ const Orders = () => {
 
   const handleDeleteOrder = async () => {
     if (!deleteId) return;
+    if (!isVerified) {
+      setError('Action Restricted: Your seller account is unverified. Admin verification is required to cancel or delete orders.');
+      setDeleteId(null);
+      return;
+    }
     try {
       await orderService.delete(deleteId);
       setSuccessMsg('Order has been cancelled / deleted.');
       setDeleteId(null);
       fetchOrders();
+      fetchProductList();
+      fetchCustomerList();
     } catch (err) {
       console.error('Delete order error:', err);
       alert('Failed to delete order.');
@@ -94,20 +203,44 @@ const Orders = () => {
 
   const handleCreateOrderSubmit = async (e) => {
     e.preventDefault();
-    if (!newOrderForm.customerName || !newOrderForm.product || !newOrderForm.totalAmount) {
-      alert('Please fill customer name, product and total amount.');
+    if (isAdmin) {
+      alert('Action Restricted: Platform Admins manage sellers only and cannot place orders.');
       return;
     }
+    if (!isVerified) {
+      alert('Action Restricted: Your seller account is unverified. Admin verification is required to create orders.');
+      return;
+    }
+    if (!newOrderForm.customerId) {
+      alert('Only registered customers can place orders. Please select a registered customer.');
+      return;
+    }
+    if (!newOrderForm.customerName || !newOrderForm.product || !newOrderForm.totalAmount) {
+      alert('Please fill product and total amount.');
+      return;
+    }
+
+    // Stock availability validation
+    if (newOrderForm.productId) {
+      const selectedProd = productList.find((p) => p._id === newOrderForm.productId);
+      if (selectedProd && selectedProd.stock < newOrderForm.quantity) {
+        alert(`Insufficient stock! Only ${selectedProd.stock} units available for "${selectedProd.name}".`);
+        return;
+      }
+    }
+
     try {
       setCreatingOrder(true);
       await orderService.create(newOrderForm);
-      setSuccessMsg('New order created successfully!');
+      setSuccessMsg('New order created successfully! Stock and customer spending updated.');
       setShowAddModal(false);
       setNewOrderForm(initialOrderForm);
       fetchOrders();
+      fetchProductList();
+      fetchCustomerList();
     } catch (err) {
       console.error('Create order error:', err);
-      alert('Failed to create order');
+      alert(err.response?.data?.message || 'Failed to create order');
     } finally {
       setCreatingOrder(false);
     }
@@ -135,13 +268,24 @@ const Orders = () => {
           </p>
         </div>
         <div className="d-flex gap-2">
-          <button
-            className="btn btn-amazon-primary d-flex align-items-center gap-2 shadow-sm"
-            onClick={() => setShowAddModal(true)}
-          >
-            <i className="bi bi-plus-lg"></i>
-            <span>Create New Order</span>
-          </button>
+          {!isAdmin && (
+            <button
+              className={`btn d-flex align-items-center gap-2 shadow-sm ${
+                !isVerified ? 'btn-secondary opacity-75' : 'btn-amazon-primary'
+              }`}
+              onClick={() => {
+                if (!isVerified) {
+                  setError('Action Restricted: Your seller account is unverified. Admin approval is required to create new orders.');
+                  return;
+                }
+                setShowAddModal(true);
+              }}
+              title={!isVerified ? 'Admin verification required to create orders' : 'Create New Order'}
+            >
+              <i className={!isVerified ? 'bi bi-lock-fill' : 'bi bi-plus-lg'}></i>
+              <span>{!isVerified ? 'Create Order (Locked)' : 'Create New Order'}</span>
+            </button>
+          )}
           <button
             onClick={fetchOrders}
             className="btn btn-outline-secondary d-flex align-items-center gap-1"
@@ -151,6 +295,20 @@ const Orders = () => {
           </button>
         </div>
       </div>
+
+      {/* Unverified Seller Notification */}
+      {!isAdmin && !isVerified && (
+        <div className="alert alert-warning border border-warning shadow-sm rounded-3 d-flex align-items-center gap-3 p-3 mb-4">
+          <i className="bi bi-shield-exclamation fs-3 text-warning"></i>
+          <div>
+            <div className="fw-bold text-dark">Order Fulfillment Actions Restricted</div>
+            <small className="text-secondary">
+              Your account is awaiting Admin verification. You can review past orders, but creating new orders, advancing fulfillment statuses, and cancellations are locked.
+            </small>
+          </div>
+        </div>
+      )}
+
 
       {/* Alerts */}
       <AlertBanner message={error} type="danger" onClose={() => setError(null)} />
@@ -239,7 +397,18 @@ const Orders = () => {
                     </td>
 
                     <td>
-                      <div className="fw-semibold text-dark">{o.customerName}</div>
+                      <div className="d-flex align-items-center gap-2">
+                        <span className="fw-semibold text-dark">{o.customerName}</span>
+                        {o.customerId && (
+                          <span
+                            className="badge bg-success-subtle text-success border border-success-subtle py-0.5 px-1.5"
+                            title="Linked Registered Customer"
+                            style={{ fontSize: '0.7rem' }}
+                          >
+                            <i className="bi bi-check-circle-fill me-1"></i>Linked
+                          </span>
+                        )}
+                      </div>
                       <small className="text-muted" style={{ fontSize: '0.75rem' }}>
                         {o.customerEmail}
                       </small>
@@ -253,7 +422,7 @@ const Orders = () => {
                     </td>
 
                     <td className="fw-bold text-dark">
-                      ${Number(o.totalAmount || 0).toFixed(2)}
+                      ₹{Number(o.totalAmount || 0).toFixed(2)}
                     </td>
 
                     <td className="text-muted" style={{ fontSize: '0.85rem' }}>
@@ -263,10 +432,11 @@ const Orders = () => {
                     <td>
                       {/* Status select dropdown */}
                       <select
-                        className={`form-select form-select-sm fw-semibold ${getStatusBadge(o.status)}`}
-                        style={{ width: '135px', cursor: 'pointer' }}
+                        className={`form-select form-select-sm fw-semibold ${getStatusBadge(o.status)} ${!isVerified ? 'opacity-75' : ''}`}
+                        style={{ width: '135px', cursor: !isVerified ? 'not-allowed' : 'pointer' }}
                         value={o.status}
-                        disabled={updatingId === o._id}
+                        disabled={!isVerified || updatingId === o._id}
+                        title={!isVerified ? 'Account unverified — Status changes are locked' : 'Change Order Status'}
                         onChange={(e) => handleStatusChange(o._id, e.target.value)}
                       >
                         <option value="Pending">Pending</option>
@@ -287,11 +457,12 @@ const Orders = () => {
                           <i className="bi bi-eye"></i>
                         </button>
                         <button
-                          className="btn btn-outline-danger"
+                          className={`btn btn-outline-danger ${!isVerified ? 'disabled opacity-50' : ''}`}
                           onClick={() => setDeleteId(o._id)}
-                          title="Cancel/Delete Order"
+                          disabled={!isVerified}
+                          title={!isVerified ? 'Account unverified — Cancel/Delete is locked' : 'Cancel/Delete Order'}
                         >
-                          <i className="bi bi-trash"></i>
+                          <i className={`bi ${!isVerified ? 'bi-lock-fill' : 'bi-trash'}`}></i>
                         </button>
                       </div>
                     </td>
@@ -322,27 +493,108 @@ const Orders = () => {
               </div>
               <form onSubmit={handleCreateOrderSubmit}>
                 <div className="modal-body p-4">
+                  {/* Registered Customer Selection (Required) */}
+                  <div className="mb-3 p-3 bg-light rounded-3 border">
+                    <div className="d-flex justify-content-between align-items-center mb-1">
+                      <label className="form-label fw-semibold small text-dark mb-0">
+                        <i className="bi bi-person-check-fill text-primary me-1"></i>
+                        Select Registered Customer *
+                      </label>
+                      <span className="badge bg-danger-subtle text-danger">Required</span>
+                    </div>
+                    <select
+                      className="form-select form-select-sm mt-2"
+                      value={newOrderForm.customerId || ''}
+                      onChange={handleCustomerSelectChange}
+                      required
+                    >
+                      <option value="">-- Choose Registered Customer --</option>
+                      {customerList.map((c) => (
+                        <option key={c._id} value={c._id}>
+                          {c.name} ({c.email}) {c.city ? `• ${c.city}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {customerList.length === 0 ? (
+                      <div className="text-danger mt-1 small">
+                        <i className="bi bi-exclamation-triangle-fill me-1"></i>
+                        No registered customer found! Please add a customer first in the Customer section.
+                      </div>
+                    ) : (
+                      <div className="text-muted mt-1" style={{ fontSize: '0.75rem' }}>
+                        Only verified & registered customers can place an order.
+                      </div>
+                    )}
+                  </div>
+
                   <div className="mb-3">
                     <label className="form-label fw-semibold small">Customer Full Name *</label>
                     <input
                       type="text"
-                      className="form-control"
-                      placeholder="e.g. John Doe"
+                      className="form-control bg-light"
+                      placeholder="Auto-filled from registered customer"
                       value={newOrderForm.customerName}
-                      onChange={(e) => setNewOrderForm({ ...newOrderForm, customerName: e.target.value })}
+                      readOnly
                       required
                     />
                   </div>
 
                   <div className="mb-3">
-                    <label className="form-label fw-semibold small">Customer Email</label>
+                    <label className="form-label fw-semibold small">Customer Email *</label>
                     <input
                       type="email"
-                      className="form-control"
-                      placeholder="john.doe@example.com"
+                      className="form-control bg-light"
+                      placeholder="Auto-filled from registered customer"
                       value={newOrderForm.customerEmail}
-                      onChange={(e) => setNewOrderForm({ ...newOrderForm, customerEmail: e.target.value })}
+                      readOnly
+                      required
                     />
+                  </div>
+
+                  {/* Product Inventory Select */}
+                  <div className="mb-3 p-3 bg-light rounded-3 border">
+                    <div className="d-flex justify-content-between align-items-center mb-1">
+                      <label className="form-label fw-semibold small text-dark mb-0">
+                        <i className="bi bi-box-seam text-primary me-1"></i>
+                        Select Product from Inventory
+                      </label>
+                      <span className="badge bg-primary-subtle text-primary">Live Stock</span>
+                    </div>
+                    <select
+                      className="form-select form-select-sm mt-2"
+                      value={newOrderForm.productId || ''}
+                      onChange={handleProductSelectChange}
+                    >
+                      <option value="">-- Manual Entry / Custom Product --</option>
+                      {productList.map((p) => (
+                        <option key={p._id} value={p._id} disabled={p.stock <= 0}>
+                          {p.name} — ₹{Number(p.price).toFixed(2)} ({p.stock > 0 ? `Stock: ${p.stock}` : 'OUT OF STOCK'})
+                        </option>
+                      ))}
+                    </select>
+                    {(() => {
+                      const sel = productList.find((p) => p._id === newOrderForm.productId);
+                      if (!sel) return null;
+                      return (
+                        <div className="d-flex justify-content-between align-items-center mt-2 pt-2 border-top small">
+                          <span className="text-muted">
+                            Unit Price: <strong className="text-dark">₹{Number(sel.price).toFixed(2)}</strong>
+                          </span>
+                          <span
+                            className={`badge ${
+                              sel.stock > 5
+                                ? 'bg-success-subtle text-success'
+                                : sel.stock > 0
+                                ? 'bg-warning-subtle text-warning'
+                                : 'bg-danger-subtle text-danger'
+                            }`}
+                          >
+                            <i className="bi bi-layers me-1"></i>
+                            {sel.stock > 0 ? `${sel.stock} Units in Stock` : 'Out of Stock'}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="mb-3">
@@ -363,20 +615,24 @@ const Orders = () => {
                       <input
                         type="number"
                         min="1"
+                        max={(() => {
+                          const sel = productList.find((p) => p._id === newOrderForm.productId);
+                          return sel ? sel.stock : undefined;
+                        })()}
                         className="form-control"
                         value={newOrderForm.quantity}
-                        onChange={(e) => setNewOrderForm({ ...newOrderForm, quantity: Number(e.target.value) })}
+                        onChange={(e) => handleQuantityChange(e.target.value)}
                         required
                       />
                     </div>
                     <div className="col-6">
-                      <label className="form-label fw-semibold small">Total Amount ($) *</label>
+                      <label className="form-label fw-semibold small">Total Amount (₹) *</label>
                       <input
                         type="number"
                         step="0.01"
                         min="0"
                         className="form-control"
-                        placeholder="249.99"
+                        placeholder="1999.00"
                         value={newOrderForm.totalAmount}
                         onChange={(e) => setNewOrderForm({ ...newOrderForm, totalAmount: e.target.value })}
                         required
@@ -461,10 +717,19 @@ const Orders = () => {
                       </span>
                     </div>
                   </div>
+                  <div className="text-center">
+                    <span className="text-muted small">Seller / Store</span>
+                    <div>
+                      <span className="badge bg-dark-subtle text-dark fw-semibold border px-2 py-1">
+                        <i className="bi bi-shop me-1 text-primary"></i>
+                        {viewOrder.sellerName || (viewOrder.seller?.storeName || 'Amazon Seller Store')}
+                      </span>
+                    </div>
+                  </div>
                   <div className="text-end">
                     <span className="text-muted small">Total Paid</span>
                     <h4 className="fw-bold text-dark mb-0">
-                      ${Number(viewOrder.totalAmount || 0).toFixed(2)}
+                      ₹{Number(viewOrder.totalAmount || 0).toFixed(2)}
                     </h4>
                   </div>
                 </div>
@@ -472,9 +737,26 @@ const Orders = () => {
                 <div className="mb-3">
                   <h6 className="fw-bold text-dark mb-2">Item Information</h6>
                   <div className="p-3 bg-light rounded-3">
-                    <div className="fw-semibold text-dark">{viewOrder.product}</div>
-                    <div className="text-muted small mt-1">
-                      Ordered Quantity: <span className="fw-bold text-dark">{viewOrder.quantity}</span>
+                    <div className="d-flex justify-content-between align-items-center mb-1">
+                      <div className="fw-semibold text-dark">{viewOrder.product}</div>
+                      {viewOrder.productId ? (
+                        <span className="badge bg-primary-subtle text-primary border border-primary-subtle">
+                          <i className="bi bi-box-seam me-1"></i>
+                          Catalog Item {viewOrder.productId.category ? `(${viewOrder.productId.category})` : ''}
+                        </span>
+                      ) : (
+                        <span className="badge bg-secondary-subtle text-muted">Custom Item</span>
+                      )}
+                    </div>
+                    <div className="text-muted small mt-2 d-flex justify-content-between align-items-center">
+                      <span>
+                        Ordered Quantity: <strong className="text-dark">{viewOrder.quantity || 1}</strong>
+                      </span>
+                      {viewOrder.productId?.stock !== undefined && (
+                        <span className="badge bg-light text-dark border">
+                          Live Stock Remaining: <strong>{viewOrder.productId.stock}</strong>
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -482,8 +764,22 @@ const Orders = () => {
                 <div className="mb-3">
                   <h6 className="fw-bold text-dark mb-2">Customer & Shipping</h6>
                   <div className="p-3 bg-light rounded-3 small">
-                    <div><strong>Customer Name:</strong> {viewOrder.customerName}</div>
+                    <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                      <div><strong>Customer Name:</strong> {viewOrder.customerName}</div>
+                      {viewOrder.customerId ? (
+                        <span className="badge bg-success-subtle text-success border border-success-subtle">
+                          <i className="bi bi-patch-check-fill me-1"></i> Registered Customer
+                        </span>
+                      ) : (
+                        <span className="badge bg-secondary-subtle text-muted">
+                          Guest / Manual Order
+                        </span>
+                      )}
+                    </div>
                     <div><strong>Email:</strong> {viewOrder.customerEmail}</div>
+                    {viewOrder.customerId?.phone && (
+                      <div><strong>Phone:</strong> {viewOrder.customerId.phone}</div>
+                    )}
                     <div><strong>Shipping Address:</strong> {viewOrder.shippingAddress || 'Not specified'}</div>
                     <div><strong>Payment Method:</strong> {viewOrder.paymentMethod || 'Credit Card'}</div>
                     <div><strong>Order Placed:</strong> {new Date(viewOrder.orderDate).toLocaleString()}</div>

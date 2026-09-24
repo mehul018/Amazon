@@ -79,48 +79,40 @@ const Sales = () => {
         <div className="col-12 col-sm-6 col-xl-3">
           <StatCard
             title="Total Store Sales"
-            value={`$${(summary?.totalSales || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+            value={`₹${(summary?.totalSales || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
             icon="bi-cash-stack"
             bgColor="#e0f2fe"
             textColor="#0284c7"
-            changeText="+14.2%"
-            isPositive={true}
           />
         </div>
 
         <div className="col-12 col-sm-6 col-xl-3">
           <StatCard
             title="Today's Sales"
-            value={`$${(summary?.todaySales || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+            value={`₹${(summary?.todaySales || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
             icon="bi-calendar-check"
             bgColor="#fef3c7"
             textColor="#d97706"
-            changeText={`${summary?.todayOrdersCount || 0} orders`}
-            isPositive={true}
           />
         </div>
 
         <div className="col-12 col-sm-6 col-xl-3">
           <StatCard
             title="Monthly Sales (M-T-D)"
-            value={`$${(summary?.monthlySales || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+            value={`₹${(summary?.monthlySales || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
             icon="bi-calendar3"
             bgColor="#dcfce7"
             textColor="#16a34a"
-            changeText={`${summary?.monthlyOrdersCount || 0} orders`}
-            isPositive={true}
           />
         </div>
 
         <div className="col-12 col-sm-6 col-xl-3">
           <StatCard
             title="Avg. Order Value"
-            value={`$${avgOrderValue}`}
+            value={`₹${avgOrderValue}`}
             icon="bi-cart-check-fill"
             bgColor="#fae8ff"
             textColor="#9333ea"
-            changeText="Healthy"
-            isPositive={true}
           />
         </div>
       </div>
@@ -141,7 +133,7 @@ const Sales = () => {
           type={chartType}
           labels={summary?.chartData?.labels || []}
           data={summary?.chartData?.sales || []}
-          title="Revenue ($)"
+          title="Revenue (₹)"
           borderColor="#0284c7"
           backgroundColor="rgba(2, 132, 199, 0.15)"
         />
@@ -175,7 +167,7 @@ const Sales = () => {
                     <div className="bg-white p-2 rounded-2 border">
                       <div className="text-muted small">Units Sold</div>
                       <h5 className="fw-bold text-dark mt-1 mb-0">
-                        {summary.bestSeller.salesCount || 100}+
+                        {summary.bestSeller.salesCount ?? 0}
                       </h5>
                     </div>
                   </div>
@@ -183,7 +175,7 @@ const Sales = () => {
                     <div className="bg-white p-2 rounded-2 border">
                       <div className="text-muted small">Unit Price</div>
                       <h5 className="fw-bold text-dark mt-1 mb-0">
-                        ${summary.bestSeller.price?.toFixed(2)}
+                        ₹{summary.bestSeller.price?.toFixed(2)}
                       </h5>
                     </div>
                   </div>
@@ -202,12 +194,14 @@ const Sales = () => {
               <div className="d-flex justify-content-between p-2 border-bottom small">
                 <span className="text-muted">Completed Orders</span>
                 <span className="fw-bold text-success">
-                  {summary?.totalOrders ? Math.max(0, summary.totalOrders - 1) : 0}
+                  {summary?.completedOrders ?? (summary?.totalOrders ? Math.max(0, summary.totalOrders - 1) : 0)}
                 </span>
               </div>
               <div className="d-flex justify-content-between p-2 small">
                 <span className="text-muted">Fulfillment Rate</span>
-                <span className="fw-bold text-primary">96.8%</span>
+                <span className="fw-bold text-primary">
+                  {summary?.fulfillmentRate !== undefined ? `${summary.fulfillmentRate}%` : '0%'}
+                </span>
               </div>
             </div>
           </div>
@@ -251,10 +245,10 @@ const Sales = () => {
                           {p.category}
                         </span>
                       </td>
-                      <td className="fw-bold">${p.price?.toFixed(2)}</td>
+                      <td className="fw-bold">₹{p.price?.toFixed(2)}</td>
                       <td>
                         <span className="fw-semibold text-success">
-                          {p.salesCount || (idx === 0 ? 310 : idx === 1 ? 142 : 88)} sold
+                          {p.salesCount || 0} sold
                         </span>
                       </td>
                     </tr>

@@ -6,17 +6,21 @@ const router = express.Router();
 const {
   getCustomers,
   getCustomerById,
-  createCustomer
+  createCustomer,
+  deleteCustomer
 } = require('../controllers/customerController');
+const { protect, optionalAuth, verifiedSellerOnly } = require('../middleware/authMiddleware');
 
 // GET /api/customers - Get customer list (supports ?search=)
-// POST /api/customers - Create new customer
+// POST /api/customers - Create new customer (Verified Seller Only)
 router.route('/')
-  .get(getCustomers)
-  .post(createCustomer);
+  .get(optionalAuth, getCustomers)
+  .post(protect, verifiedSellerOnly, createCustomer);
 
 // GET /api/customers/:id - Get single customer details with order history
+// DELETE /api/customers/:id - Delete customer and unlink past orders (Verified Seller Only)
 router.route('/:id')
-  .get(getCustomerById);
+  .get(optionalAuth, getCustomerById)
+  .delete(protect, verifiedSellerOnly, deleteCustomer);
 
 module.exports = router;

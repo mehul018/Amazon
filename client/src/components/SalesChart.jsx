@@ -30,16 +30,20 @@ const SalesChart = ({
   type = 'line',
   labels = [],
   data = [],
-  title = 'Sales Revenue ($)',
+  title = 'Sales Revenue (₹)',
   borderColor = '#ff9900',
   backgroundColor = 'rgba(255, 153, 0, 0.12)'
 }) => {
+  const defaultMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const chartLabels = labels && labels.length > 0 ? labels : defaultMonths;
+  const chartDataPoints = data && data.length > 0 ? data : new Array(chartLabels.length).fill(0);
+
   const chartData = {
-    labels: labels.length > 0 ? labels : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
+    labels: chartLabels,
     datasets: [
       {
         label: title,
-        data: data.length > 0 ? data : [1200, 1900, 2400, 2100, 2900, 3400, 3900],
+        data: chartDataPoints,
         borderColor: borderColor,
         backgroundColor: backgroundColor,
         fill: true,
@@ -69,7 +73,7 @@ const SalesChart = ({
         cornerRadius: 6,
         callbacks: {
           label: function (context) {
-            return ` ${title}: $${context.raw.toLocaleString()}`;
+            return ` ${title}: ₹${context.raw.toLocaleString()}`;
           }
         }
       }
@@ -92,7 +96,7 @@ const SalesChart = ({
           font: { family: 'Inter', size: 12 },
           color: '#64748b',
           callback: function (value) {
-            return '$' + value;
+            return '₹' + value;
           }
         }
       }

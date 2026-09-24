@@ -20,6 +20,11 @@ const orderSchema = new mongoose.Schema(
       required: [true, 'Customer email is required'],
       trim: true
     },
+    customerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Customer',
+      required: [true, 'Order must be placed by a registered customer']
+    },
     product: {
       type: String,
       required: [true, 'Product name is required']
@@ -27,6 +32,16 @@ const orderSchema = new mongoose.Schema(
     productId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Product'
+    },
+    seller: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      index: true
+    },
+    sellerName: {
+      type: String,
+      trim: true,
+      default: 'Amazon Seller Store'
     },
     quantity: {
       type: Number,

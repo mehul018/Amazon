@@ -13,6 +13,7 @@ const productRoutes = require('./routes/productRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const salesRoutes = require('./routes/salesRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -54,6 +55,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/sales', salesRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 404 Not Found Middleware
 app.use((req, res, next) => {

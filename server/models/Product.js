@@ -19,10 +19,31 @@ const productSchema = new mongoose.Schema(
       required: [true, 'Please select a category'],
       trim: true
     },
+    brand: {
+      type: String,
+      trim: true,
+      default: 'Generic'
+    },
+    sku: {
+      type: String,
+      trim: true,
+      default: ''
+    },
     price: {
       type: Number,
       required: [true, 'Please enter product price'],
       min: [0, 'Price cannot be negative']
+    },
+    originalPrice: {
+      type: Number,
+      min: [0, 'Original price cannot be negative'],
+      default: 0
+    },
+    discount: {
+      type: Number,
+      min: [0, 'Discount cannot be negative'],
+      max: [100, 'Discount cannot exceed 100%'],
+      default: 0
     },
     stock: {
       type: Number,
@@ -34,6 +55,31 @@ const productSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Please enter product description'],
       trim: true
+    },
+    specifications: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    warranty: {
+      type: String,
+      trim: true,
+      default: '1 Year Manufacturer Warranty'
+    },
+    tags: [
+      {
+        type: String,
+        trim: true
+      }
+    ],
+    seller: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    sellerName: {
+      type: String,
+      trim: true,
+      default: 'Amazon Seller Store'
     },
     rating: {
       type: Number,

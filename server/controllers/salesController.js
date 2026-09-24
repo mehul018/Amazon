@@ -13,13 +13,33 @@ const Customer = require('../models/Customer');
  */
 const getSalesSummary = async (req, res) => {
   try {
+    const isSeller = req.user && req.user.role === 'seller';
+    const sellerId = isSeller ? req.user._id : (req.query.sellerId || null);
+
+    const orderFilter = sellerId ? { seller: sellerId } : {};
+    const productFilter = sellerId ? { seller: sellerId } : {};
+
     // 1. Fetch counts
-    const totalProducts = await Product.countDocuments();
-    const totalOrders = await Order.countDocuments();
-    const totalCustomers = await Customer.countDocuments();
+    const totalProducts = await Product.countDocuments(productFilter);
+    const totalOrders = await Order.countDocuments(orderFilter);
+    const completedOrders = await Order.countDocuments({ ...orderFilter, status: 'Delivered' });
+
+    // Customer count: distinct customers for this seller, or all customers for platform admin
+    let totalCustomers;
+    if (sellerId) {
+      const distinctCustomerIds = await Order.distinct('customerId', orderFilter);
+      totalCustomers = distinctCustomerIds.filter(Boolean).length;
+    } else {
+      totalCustomers = await Customer.countDocuments();
+    }
+
+    // Dynamic fulfillment rate (% of total orders that are delivered)
+    const fulfillmentRate = totalOrders > 0
+      ? ((completedOrders / totalOrders) * 100).toFixed(1)
+      : '0.0';
 
     // 2. Calculate Total Sales (excluding Cancelled orders)
-    const validOrders = await Order.find({ status: { $ne: 'Cancelled' } });
+    const validOrders = await Order.find({ ...orderFilter, status: { $ne: 'Cancelled' } });
     const totalSales = validOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
 
     // 3. Today's Sales Calculation
@@ -39,10 +59,10 @@ const getSalesSummary = async (req, res) => {
     const monthlySales = monthlyOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
 
     // 5. Recent 5 Orders
-    const recentOrders = await Order.find().sort({ orderDate: -1 }).limit(5);
+    const recentOrders = await Order.find(orderFilter).sort({ orderDate: -1 }).limit(5);
 
     // 6. Top Selling Products (from Product salesCount and Orders)
-    const topProducts = await Product.find().sort({ salesCount: -1, rating: -1 }).limit(5);
+    const topProducts = await Product.find(productFilter).sort({ salesCount: -1, rating: -1 }).limit(5);
 
     // 7. Calculate Monthly Sales Chart Data (Last 6-12 Months)
     const months = [
@@ -58,31 +78,28 @@ const getSalesSummary = async (req, res) => {
     });
 
     validOrders.forEach((order) => {
-      const orderDate = new Date(order.orderDate);
-      // Group for chart visualization
-      const monthName = months[orderDate.getMonth()];
-      monthlyDataMap[monthName].sales += order.totalAmount || 0;
-      monthlyDataMap[monthName].orders += 1;
+      if (order.orderDate) {
+        const orderDate = new Date(order.orderDate);
+        const monthIndex = orderDate.getMonth();
+        if (monthIndex >= 0 && monthIndex < 12) {
+          const monthName = months[monthIndex];
+          monthlyDataMap[monthName].sales += Number(order.totalAmount) || 0;
+          monthlyDataMap[monthName].orders += 1;
+        }
+      }
     });
 
-    // If data is very sparse (e.g. freshly seeded), ensure realistic chart curve
-    const chartLabels = months.slice(0, 7); // Jan - Jul
-    const chartSalesData = chartLabels.map((m, index) => {
-      const recorded = monthlyDataMap[m].sales;
-      return recorded > 0 ? recorded : Math.round(1200 + index * 450 + (index % 2 === 0 ? 300 : -150));
-    });
-    const chartOrdersData = chartLabels.map((m, index) => {
-      const recorded = monthlyDataMap[m].orders;
-      return recorded > 0 ? recorded : Math.round(15 + index * 4);
-    });
+    // Display all 12 months (Jan - Dec) so any order placed in the current month or year is reflected
+    const chartLabels = months;
+    const chartSalesData = chartLabels.map((m) => Math.round((monthlyDataMap[m].sales || 0) * 100) / 100);
+    const chartOrdersData = chartLabels.map((m) => monthlyDataMap[m].orders || 0);
 
     // 8. Category Breakdown
     const categories = ['Electronics', 'Fashion', 'Home & Kitchen', 'Books', 'Beauty'];
     const categoryData = categories.map((cat) => {
-      const count = validOrders.filter((o) =>
+      return validOrders.filter((o) =>
         o.product && o.product.toLowerCase().includes(cat.toLowerCase().slice(0, 4))
       ).length;
-      return count > 0 ? count : Math.floor(Math.random() * 8 + 3);
     });
 
     // 9. Best selling product name
@@ -93,13 +110,15 @@ const getSalesSummary = async (req, res) => {
       data: {
         totalProducts,
         totalOrders,
+        completedOrders,
+        fulfillmentRate,
         totalSales: Math.round(totalSales * 100) / 100,
         totalCustomers,
         todaySales: Math.round(todaySales * 100) / 100,
         todayOrdersCount: todayOrders.length,
         monthlySales: Math.round(monthlySales * 100) / 100,
         monthlyOrdersCount: monthlyOrders.length,
-        bestSellingProduct: bestSeller ? bestSeller.name : 'Echo Dot Smart Speaker',
+        bestSellingProduct: bestSeller ? bestSeller.name : 'None',
         bestSeller,
         recentOrders,
         topProducts,

@@ -1,6 +1,6 @@
 import React from 'react';
 
-const StatCard = ({ title, value, icon, bgColor, textColor, changeText, isPositive = true }) => {
+const StatCard = ({ title, value, icon, bgColor, textColor, changeText, isPositive = true, compareText }) => {
   return (
     <div className="stat-card h-100">
       <div className="d-flex flex-column justify-content-between">
@@ -12,11 +12,13 @@ const StatCard = ({ title, value, icon, bgColor, textColor, changeText, isPositi
         </h3>
         {changeText && (
           <div className="d-flex align-items-center" style={{ fontSize: '0.82rem' }}>
-            <span className={`badge ${isPositive ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'} me-2`}>
+            <span className={`badge ${isPositive ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'} ${compareText ? 'me-2' : ''}`}>
               <i className={`bi ${isPositive ? 'bi-arrow-up-short' : 'bi-arrow-down-short'}`}></i>
               {changeText}
             </span>
-            <span className="text-muted" style={{ fontSize: '0.75rem' }}>vs last month</span>
+            {compareText && (
+              <span className="text-muted" style={{ fontSize: '0.75rem' }}>{compareText}</span>
+            )}
           </div>
         )}
       </div>
