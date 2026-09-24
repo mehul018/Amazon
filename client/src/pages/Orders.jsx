@@ -5,6 +5,17 @@ import AlertBanner from '../components/AlertBanner';
 
 const statusList = ['All', 'Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'];
 
+const initialOrderForm = {
+  customerName: '',
+  customerEmail: '',
+  product: '',
+  quantity: 1,
+  totalAmount: '',
+  status: 'Pending',
+  shippingAddress: '',
+  paymentMethod: 'Credit Card'
+};
+
 const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,6 +30,11 @@ const Orders = () => {
   const [viewOrder, setViewOrder] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
+
+  // Create Order Modal
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newOrderForm, setNewOrderForm] = useState(initialOrderForm);
+  const [creatingOrder, setCreatingOrder] = useState(false);
 
   const fetchOrders = async () => {
     try {
@@ -76,6 +92,27 @@ const Orders = () => {
     }
   };
 
+  const handleCreateOrderSubmit = async (e) => {
+    e.preventDefault();
+    if (!newOrderForm.customerName || !newOrderForm.product || !newOrderForm.totalAmount) {
+      alert('Please fill customer name, product and total amount.');
+      return;
+    }
+    try {
+      setCreatingOrder(true);
+      await orderService.create(newOrderForm);
+      setSuccessMsg('New order created successfully!');
+      setShowAddModal(false);
+      setNewOrderForm(initialOrderForm);
+      fetchOrders();
+    } catch (err) {
+      console.error('Create order error:', err);
+      alert('Failed to create order');
+    } finally {
+      setCreatingOrder(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
     const map = {
       Pending: 'badge-pending',
@@ -97,13 +134,22 @@ const Orders = () => {
             Track customer purchases, update fulfillment lifecycle and view shipping details.
           </p>
         </div>
-        <button
-          onClick={fetchOrders}
-          className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-        >
-          <i className="bi bi-arrow-clockwise"></i>
-          <span>Refresh Orders</span>
-        </button>
+        <div className="d-flex gap-2">
+          <button
+            className="btn btn-amazon-primary d-flex align-items-center gap-2 shadow-sm"
+            onClick={() => setShowAddModal(true)}
+          >
+            <i className="bi bi-plus-lg"></i>
+            <span>Create New Order</span>
+          </button>
+          <button
+            onClick={fetchOrders}
+            className="btn btn-outline-secondary d-flex align-items-center gap-1"
+          >
+            <i className="bi bi-arrow-clockwise"></i>
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* Alerts */}
@@ -167,6 +213,9 @@ const Orders = () => {
             <p className="text-muted small">
               No customer orders match the selected status or search term.
             </p>
+            <button className="btn btn-sm btn-amazon-primary mt-2" onClick={() => setShowAddModal(true)}>
+              Create First Order
+            </button>
           </div>
         ) : (
           <div className="table-responsive">
@@ -253,6 +302,135 @@ const Orders = () => {
           </div>
         )}
       </div>
+
+      {/* Create New Order Modal */}
+      {showAddModal && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title fw-bold text-dark">Create Manual Customer Order</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowAddModal(false)}
+                ></button>
+              </div>
+              <form onSubmit={handleCreateOrderSubmit}>
+                <div className="modal-body p-4">
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small">Customer Full Name *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g. John Doe"
+                      value={newOrderForm.customerName}
+                      onChange={(e) => setNewOrderForm({ ...newOrderForm, customerName: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small">Customer Email</label>
+                    <input
+                      type="email"
+                      className="form-control"
+                      placeholder="john.doe@example.com"
+                      value={newOrderForm.customerEmail}
+                      onChange={(e) => setNewOrderForm({ ...newOrderForm, customerEmail: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small">Product Name *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g. Apple AirPods Pro (2nd Gen)"
+                      value={newOrderForm.product}
+                      onChange={(e) => setNewOrderForm({ ...newOrderForm, product: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="row g-2 mb-3">
+                    <div className="col-6">
+                      <label className="form-label fw-semibold small">Quantity *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        className="form-control"
+                        value={newOrderForm.quantity}
+                        onChange={(e) => setNewOrderForm({ ...newOrderForm, quantity: Number(e.target.value) })}
+                        required
+                      />
+                    </div>
+                    <div className="col-6">
+                      <label className="form-label fw-semibold small">Total Amount ($) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="form-control"
+                        placeholder="249.99"
+                        value={newOrderForm.totalAmount}
+                        onChange={(e) => setNewOrderForm({ ...newOrderForm, totalAmount: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small">Initial Status</label>
+                    <select
+                      className="form-select"
+                      value={newOrderForm.status}
+                      onChange={(e) => setNewOrderForm({ ...newOrderForm, status: e.target.value })}
+                    >
+                      <option value="Pending">Pending</option>
+                      <option value="Confirmed">Confirmed</option>
+                      <option value="Shipped">Shipped</option>
+                      <option value="Delivered">Delivered</option>
+                    </select>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small">Shipping Address</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g. 100 Main St, Seattle, WA"
+                      value={newOrderForm.shippingAddress}
+                      onChange={(e) => setNewOrderForm({ ...newOrderForm, shippingAddress: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="modal-footer bg-light">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowAddModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-amazon-primary px-4"
+                    disabled={creatingOrder}
+                  >
+                    {creatingOrder ? 'Creating...' : 'Create Order'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* View Order Details Modal */}
       {viewOrder && (

@@ -3,13 +3,26 @@ import { customerService } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AlertBanner from '../components/AlertBanner';
 
+const initialCustomerForm = {
+  name: '',
+  email: '',
+  phone: '',
+  city: '',
+  address: ''
+};
+
 const Customers = () => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [successMsg, setSuccessMsg] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [modalLoading, setModalLoading] = useState(false);
+
+  // Add customer modal
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newCustomerForm, setNewCustomerForm] = useState(initialCustomerForm);
+  const [savingCustomer, setSavingCustomer] = useState(false);
 
   const fetchCustomers = async () => {
     try {
@@ -41,7 +54,6 @@ const Customers = () => {
 
   const handleViewCustomer = async (id) => {
     try {
-      setModalLoading(true);
       const res = await customerService.getById(id);
       if (res.data?.success) {
         setSelectedCustomer(res.data.data);
@@ -49,8 +61,27 @@ const Customers = () => {
     } catch (err) {
       console.error('Error fetching customer details:', err);
       alert('Failed to load customer details');
+    }
+  };
+
+  const handleCreateCustomerSubmit = async (e) => {
+    e.preventDefault();
+    if (!newCustomerForm.name || !newCustomerForm.email || !newCustomerForm.phone) {
+      alert('Please fill customer name, email and phone.');
+      return;
+    }
+    try {
+      setSavingCustomer(true);
+      await customerService.create(newCustomerForm);
+      setSuccessMsg('New customer account created successfully!');
+      setShowAddModal(false);
+      setNewCustomerForm(initialCustomerForm);
+      fetchCustomers();
+    } catch (err) {
+      console.error('Create customer error:', err);
+      alert(err.response?.data?.message || 'Failed to create customer');
     } finally {
-      setModalLoading(false);
+      setSavingCustomer(false);
     }
   };
 
@@ -64,16 +95,26 @@ const Customers = () => {
             View registered shoppers, their order frequency and lifetime spending.
           </p>
         </div>
-        <button
-          onClick={fetchCustomers}
-          className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-        >
-          <i className="bi bi-arrow-clockwise"></i>
-          <span>Refresh Customers</span>
-        </button>
+        <div className="d-flex gap-2">
+          <button
+            className="btn btn-amazon-primary d-flex align-items-center gap-2 shadow-sm"
+            onClick={() => setShowAddModal(true)}
+          >
+            <i className="bi bi-person-plus-fill"></i>
+            <span>Add Customer</span>
+          </button>
+          <button
+            onClick={fetchCustomers}
+            className="btn btn-outline-secondary d-flex align-items-center gap-1"
+          >
+            <i className="bi bi-arrow-clockwise"></i>
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       <AlertBanner message={error} type="danger" onClose={() => setError(null)} />
+      <AlertBanner message={successMsg} type="success" onClose={() => setSuccessMsg(null)} />
 
       {/* Search Input Bar */}
       <div className="amz-card mb-4">
@@ -108,7 +149,10 @@ const Customers = () => {
           <div className="text-center py-5">
             <i className="bi bi-people text-muted" style={{ fontSize: '3rem' }}></i>
             <h5 className="fw-bold mt-3">No Customers Found</h5>
-            <p className="text-muted small">Try searching with a different name or email.</p>
+            <p className="text-muted small">Try searching with a different name or add a new customer.</p>
+            <button className="btn btn-sm btn-amazon-primary mt-2" onClick={() => setShowAddModal(true)}>
+              Add Customer
+            </button>
           </div>
         ) : (
           <div className="table-responsive">
@@ -145,7 +189,7 @@ const Customers = () => {
 
                     <td>
                       <span className="badge bg-light text-dark border px-2.5 py-1.5 fw-semibold">
-                        {c.totalOrders || 1} Orders
+                        {c.totalOrders || 0} Orders
                       </span>
                     </td>
 
@@ -173,6 +217,106 @@ const Customers = () => {
           </div>
         )}
       </div>
+
+      {/* Add Customer Modal */}
+      {showAddModal && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title fw-bold text-dark">Register New Customer</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowAddModal(false)}
+                ></button>
+              </div>
+              <form onSubmit={handleCreateCustomerSubmit}>
+                <div className="modal-body p-4">
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small">Full Name *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g. Rachel Green"
+                      value={newCustomerForm.name}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small">Email Address *</label>
+                    <input
+                      type="email"
+                      className="form-control"
+                      placeholder="rachel@example.com"
+                      value={newCustomerForm.email}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small">Phone Number *</label>
+                    <input
+                      type="tel"
+                      className="form-control"
+                      placeholder="+1 (555) 123-4567"
+                      value={newCustomerForm.phone}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small">City / Location</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g. New York, NY"
+                      value={newCustomerForm.city}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, city: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small">Address</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g. 90 Bedford St"
+                      value={newCustomerForm.address}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, address: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="modal-footer bg-light">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowAddModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-amazon-primary px-4"
+                    disabled={savingCustomer}
+                  >
+                    {savingCustomer ? 'Saving...' : 'Add Customer'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Customer Profile & Orders History Modal */}
       {selectedCustomer && (
