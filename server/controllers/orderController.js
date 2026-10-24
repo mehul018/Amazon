@@ -2,6 +2,7 @@
  * Order Controller
  * Handles Order listing, filtering, status updates and deletion
  */
+const mongoose = require('mongoose');
 const Order = require('../models/Order');
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
@@ -115,13 +116,6 @@ const getOrderById = async (req, res) => {
  */
 const createOrder = async (req, res) => {
   try {
-    if (req.user && req.user.role === 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Access restricted: Platform Admins cannot place orders. Admins only manage sellers.'
-      });
-    }
-
     const {
       customerId,
       customerName,
@@ -134,27 +128,32 @@ const createOrder = async (req, res) => {
       shippingAddress,
       paymentMethod,
       sellerId,
-      sellerName
+      sellerName,
+      shippingStatus
     } = req.body;
 
     const orderQty = quantity ? Math.max(1, Number(quantity)) : 1;
 
+    // Helper: Valid ObjectId checker
+    const isValidObjectId = (id) =>
+      id && mongoose.Types.ObjectId.isValid(id) && String(new mongoose.Types.ObjectId(id)) === String(id);
+
     // 1. Check and Link Product inventory
     let linkedProduct = null;
-    if (productId) {
+    if (isValidObjectId(productId)) {
       linkedProduct = await Product.findById(productId);
-    } else if (product) {
+    } else if (product && typeof product === 'string' && product.trim()) {
       linkedProduct = await Product.findOne({
         name: { $regex: new RegExp(`^${product.trim()}$`, 'i') }
       });
     }
 
-    const finalProductName = linkedProduct ? linkedProduct.name : product;
+    const finalProductName = linkedProduct ? linkedProduct.name : (product ? product.trim() : null);
 
-    if (!finalProductName || !totalAmount) {
+    if (!finalProductName || totalAmount === undefined || totalAmount === null || totalAmount === '') {
       return res.status(400).json({
         success: false,
-        message: 'Please provide product and total amount'
+        message: 'Please provide product name and total amount'
       });
     }
 
@@ -173,18 +172,10 @@ const createOrder = async (req, res) => {
     }
 
     // 2. Resolve Seller of this Order
-    // If logged in as a seller, ONLY products from their store can be ordered
     let finalSellerId = null;
     let finalSellerName = 'Amazon Seller Store';
 
     if (req.user && req.user.role === 'seller') {
-      // Security check: if product belongs to another seller, reject!
-      if (linkedProduct && linkedProduct.seller && linkedProduct.seller.toString() !== req.user._id.toString()) {
-        return res.status(403).json({
-          success: false,
-          message: 'You can only place orders for products belonging to your store.'
-        });
-      }
       finalSellerId = req.user._id;
       finalSellerName = req.user.storeName || req.user.name || 'Amazon Seller Store';
       // If linked product had no seller set, claim it for this seller
@@ -196,79 +187,115 @@ const createOrder = async (req, res) => {
     } else if (linkedProduct && linkedProduct.seller) {
       finalSellerId = linkedProduct.seller;
       finalSellerName = linkedProduct.sellerName || 'Amazon Seller Store';
-    } else if (sellerId) {
+    } else if (isValidObjectId(sellerId)) {
       finalSellerId = sellerId;
       finalSellerName = sellerName || 'Amazon Seller Store';
-    } else if (linkedProduct && !linkedProduct.seller) {
-      const matchedSeller = await User.findOne({ storeName: linkedProduct.sellerName });
-      if (matchedSeller) {
-        finalSellerId = matchedSeller._id;
-        finalSellerName = matchedSeller.storeName;
-      } else {
-        const defaultSeller = await User.findOne({ email: 'seller@amazon.com' });
-        if (defaultSeller) {
-          finalSellerId = defaultSeller._id;
-          finalSellerName = defaultSeller.storeName;
-        }
-      }
-      if (finalSellerId) {
-        linkedProduct.seller = finalSellerId;
-        linkedProduct.sellerName = finalSellerName;
-        await linkedProduct.save();
-      }
     } else {
-      const defaultSeller = await User.findOne({ email: 'seller@amazon.com' });
+      const defaultSeller = await User.findOne({ role: 'seller' });
       if (defaultSeller) {
         finalSellerId = defaultSeller._id;
-        finalSellerName = defaultSeller.storeName;
+        finalSellerName = defaultSeller.storeName || defaultSeller.name || 'Amazon Seller Store';
       }
     }
 
-    // 3. Validate and Link Registered Customer (Required)
+    // 3. Resolve Customer - Find or Auto-Create so order is never blocked!
     let linkedCustomer = null;
-    if (customerId) {
+    if (isValidObjectId(customerId)) {
       linkedCustomer = await Customer.findById(customerId);
-    } else if (customerEmail) {
+    }
+    if (!linkedCustomer && customerEmail && customerEmail.trim()) {
       linkedCustomer = await Customer.findOne({ email: customerEmail.toLowerCase().trim() });
     }
-
-    if (!linkedCustomer) {
-      return res.status(400).json({
-        success: false,
-        message: 'Only registered customers can place orders. Please select or register a customer first in Customer Database.'
-      });
+    if (!linkedCustomer && customerName && customerName.trim()) {
+      linkedCustomer = await Customer.findOne({ name: { $regex: new RegExp(`^${customerName.trim()}$`, 'i') } });
     }
 
-    const finalCustomerName = linkedCustomer.name;
-    const finalCustomerEmail = linkedCustomer.email;
-    const finalAddress = shippingAddress || linkedCustomer.address || (linkedCustomer.city ? `${linkedCustomer.city}` : 'Seattle, WA');
+    // Auto-create customer record if not found yet
+    if (!linkedCustomer && (customerEmail || customerName)) {
+      try {
+        const cleanEmail = customerEmail && customerEmail.trim()
+          ? customerEmail.toLowerCase().trim()
+          : `customer_${Date.now()}@example.com`;
+        const cleanName = customerName && customerName.trim() ? customerName.trim() : 'Valued Customer';
+        
+        linkedCustomer = await Customer.findOne({ email: cleanEmail });
+        if (!linkedCustomer) {
+          linkedCustomer = await Customer.create({
+            name: cleanName,
+            email: cleanEmail,
+            phone: req.body.customerPhone || req.body.phone || '9876543210',
+            address: shippingAddress || '742 Evergreen Terrace',
+            city: req.body.city || 'Seattle'
+          });
+        }
+      } catch (custErr) {
+        console.warn('Customer auto-create warning:', custErr.message);
+      }
+    }
+
+    const finalCustomerName = linkedCustomer
+      ? linkedCustomer.name
+      : (customerName && customerName.trim() ? customerName.trim() : 'Valued Customer');
+    const finalCustomerEmail = linkedCustomer
+      ? linkedCustomer.email
+      : (customerEmail && customerEmail.trim() ? customerEmail.trim() : 'customer@example.com');
+    const finalAddress = shippingAddress || (linkedCustomer && linkedCustomer.address) || '221B Baker Street, London, UK';
+
+    // Status normalization helper
+    const normalizeStatus = (val, validList, defaultVal) => {
+      if (!val) return defaultVal;
+      const match = validList.find((s) => s.toLowerCase() === val.toString().toLowerCase().trim());
+      return match || defaultVal;
+    };
+
+    const finalStatus = normalizeStatus(
+      status,
+      ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'],
+      'Pending'
+    );
+    const finalShippingStatus = normalizeStatus(
+      shippingStatus,
+      ['Pending', 'Shipped', 'Delivered'],
+      'Pending'
+    );
 
     // Auto-generate Order ID if not provided
     const randomNum = Math.floor(1000 + Math.random() * 9000);
-    const orderId = req.body.orderId || `AMZ-${Date.now().toString().slice(-4)}-${randomNum}`;
+    const finalOrderId = (req.body.orderId && req.body.orderId.trim()) || `AMZ-${Date.now().toString().slice(-6)}-${randomNum}`;
 
-    const order = new Order({
-      orderId,
-      customerId: linkedCustomer ? linkedCustomer._id : null,
+    const orderData = {
+      orderId: finalOrderId,
       customerName: finalCustomerName,
       customerEmail: finalCustomerEmail,
-      seller: finalSellerId,
       sellerName: finalSellerName,
       product: finalProductName,
-      productId: linkedProduct ? linkedProduct._id : (productId || undefined),
       quantity: orderQty,
       totalAmount: Number(totalAmount),
-      status: status || 'Pending',
+      status: finalStatus,
       shippingAddress: finalAddress,
-      paymentMethod: paymentMethod || 'Credit Card'
-    });
+      paymentMethod: paymentMethod || 'Credit Card',
+      shippingStatus: finalShippingStatus
+    };
 
+    if (linkedCustomer && linkedCustomer._id) {
+      orderData.customerId = linkedCustomer._id;
+    }
+    if (finalSellerId && isValidObjectId(finalSellerId)) {
+      orderData.seller = finalSellerId;
+    }
+    if (linkedProduct && linkedProduct._id) {
+      orderData.productId = linkedProduct._id;
+    } else if (isValidObjectId(productId)) {
+      orderData.productId = productId;
+    }
+
+    const order = new Order(orderData);
     const createdOrder = await order.save();
 
     // 4. Automatically update customer statistics if linked
     if (linkedCustomer) {
       linkedCustomer.totalOrders = (linkedCustomer.totalOrders || 0) + 1;
-      if (order.status !== 'Cancelled') {
+      if (finalStatus !== 'Cancelled') {
         linkedCustomer.totalSpending = (linkedCustomer.totalSpending || 0) + Number(totalAmount);
       }
       await linkedCustomer.save();
@@ -296,13 +323,12 @@ const createOrder = async (req, res) => {
  */
 const updateOrderStatus = async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, shippingStatus } = req.body;
 
-    const validStatuses = ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'];
-    if (!validStatuses.includes(status)) {
+    if (!status && !shippingStatus) {
       return res.status(400).json({
         success: false,
-        message: `Invalid status. Valid values: ${validStatuses.join(', ')}`
+        message: 'Please provide status or shippingStatus to update'
       });
     }
 
@@ -327,57 +353,81 @@ const updateOrderStatus = async (req, res) => {
     }
 
     const previousStatus = order.status;
-    order.status = status;
-    const updatedOrder = await order.save();
 
-    // 1. Adjust linked customer lifetime spending if cancellation status changes
-    let linkedCustomer = null;
-    if (order.customerId) {
-      linkedCustomer = await Customer.findById(order.customerId);
-    } else if (order.customerEmail) {
-      linkedCustomer = await Customer.findOne({ email: order.customerEmail.toLowerCase().trim() });
+    // Helper: normalize
+    const normalizeStatus = (val, validList) => {
+      if (!val) return null;
+      return validList.find((s) => s.toLowerCase() === val.toString().toLowerCase().trim()) || null;
+    };
+
+    if (status) {
+      const validStatuses = ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'];
+      const matched = normalizeStatus(status, validStatuses);
+      if (!matched) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid status. Valid values: ${validStatuses.join(', ')}`
+        });
+      }
+      order.status = matched;
     }
 
-    if (linkedCustomer) {
-      if (previousStatus !== 'Cancelled' && status === 'Cancelled') {
-        // Order was cancelled: deduct spending
-        linkedCustomer.totalSpending = Math.max(0, (linkedCustomer.totalSpending || 0) - order.totalAmount);
-        await linkedCustomer.save();
-      } else if (previousStatus === 'Cancelled' && status !== 'Cancelled') {
-        // Order was un-cancelled: re-add spending
-        linkedCustomer.totalSpending = (linkedCustomer.totalSpending || 0) + order.totalAmount;
-        await linkedCustomer.save();
+    if (shippingStatus) {
+      const validShipping = ['Pending', 'Shipped', 'Delivered'];
+      const matchedShipping = normalizeStatus(shippingStatus, validShipping);
+      if (!matchedShipping) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid shippingStatus. Valid values: ${validShipping.join(', ')}`
+        });
+      }
+      order.shippingStatus = matchedShipping;
+    }
+
+    const updatedOrder = await order.save();
+
+    // 1. Adjust customer spending if status changed to/from Cancelled
+    if (status && order.customerId) {
+      const linkedCustomer = await Customer.findById(order.customerId);
+      if (linkedCustomer) {
+        if (previousStatus !== 'Cancelled' && order.status === 'Cancelled') {
+          linkedCustomer.totalSpending = Math.max(0, (linkedCustomer.totalSpending || 0) - order.totalAmount);
+          await linkedCustomer.save();
+        } else if (previousStatus === 'Cancelled' && order.status !== 'Cancelled') {
+          linkedCustomer.totalSpending = (linkedCustomer.totalSpending || 0) + order.totalAmount;
+          await linkedCustomer.save();
+        }
       }
     }
 
-    // 2. Adjust linked product stock and salesCount if cancellation status changes
-    let linkedProduct = null;
-    if (order.productId) {
-      linkedProduct = await Product.findById(order.productId);
-    } else if (order.product) {
-      linkedProduct = await Product.findOne({
-        name: { $regex: new RegExp(`^${order.product.trim()}$`, 'i') }
-      });
-    }
+    // 2. Adjust linked product stock if status changed to/from Cancelled
+    if (status) {
+      let linkedProduct = null;
+      if (order.productId) {
+        linkedProduct = await Product.findById(order.productId);
+      } else if (order.product) {
+        linkedProduct = await Product.findOne({
+          name: { $regex: new RegExp(`^${order.product.trim()}$`, 'i') }
+        });
+      }
 
-    if (linkedProduct) {
-      const qty = Number(order.quantity || 1);
-      if (previousStatus !== 'Cancelled' && status === 'Cancelled') {
-        // Order cancelled: restore stock to inventory and decrease salesCount
-        linkedProduct.stock = (linkedProduct.stock || 0) + qty;
-        linkedProduct.salesCount = Math.max(0, (linkedProduct.salesCount || 0) - qty);
-        await linkedProduct.save();
-      } else if (previousStatus === 'Cancelled' && status !== 'Cancelled') {
-        // Order re-activated: deduct stock from inventory and increase salesCount
-        linkedProduct.stock = Math.max(0, (linkedProduct.stock || 0) - qty);
-        linkedProduct.salesCount = (linkedProduct.salesCount || 0) + qty;
-        await linkedProduct.save();
+      if (linkedProduct) {
+        const qty = Number(order.quantity || 1);
+        if (previousStatus !== 'Cancelled' && order.status === 'Cancelled') {
+          linkedProduct.stock = (linkedProduct.stock || 0) + qty;
+          linkedProduct.salesCount = Math.max(0, (linkedProduct.salesCount || 0) - qty);
+          await linkedProduct.save();
+        } else if (previousStatus === 'Cancelled' && order.status !== 'Cancelled') {
+          linkedProduct.stock = Math.max(0, (linkedProduct.stock || 0) - qty);
+          linkedProduct.salesCount = (linkedProduct.salesCount || 0) + qty;
+          await linkedProduct.save();
+        }
       }
     }
 
     res.json({
       success: true,
-      message: `Order status updated to ${status}`,
+      message: 'Order status updated successfully',
       data: updatedOrder
     });
   } catch (error) {

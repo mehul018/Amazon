@@ -114,6 +114,10 @@ function AppRoutes() {
         }
       >
         <Route path="/dashboard" element={<Dashboard />} />
+        
+        {/* NEW CHANGE: Added an alias route for stats/dashboard compatibility if needed */}
+        <Route path="/stats" element={<Dashboard />} />
+
         <Route path="/products" element={<Products />} />
         <Route
           path="/orders"

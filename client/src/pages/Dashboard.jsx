@@ -7,6 +7,11 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import AlertBanner from '../components/AlertBanner';
 import { useAuth } from '../context/AuthContext';
 
+// NEW CHANGE: Imported axios and DashboardStats component for the new stats feature
+import axios from 'axios';
+import DashboardStats from '../components/DashboardStats';
+
+
 const categoriesList = [
   'Electronics',
   'Fashion & Apparel',
@@ -55,6 +60,13 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
 
+  // NEW CHANGE: Added stats state to hold total, active, and today records data
+  const [stats, setStats] = useState(null);
+  // NEW CHANGE: Added statsLoading and statsError states specifically for the new stats section
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState(null);
+  
+
   // Quick Add Product Modal on Dashboard
   const [showProductModal, setShowProductModal] = useState(false);
   const [productFormData, setProductFormData] = useState({
@@ -100,9 +112,32 @@ const Dashboard = () => {
     }
   };
 
+  // NEW CHANGE: Created a separate function to fetch stats data via API call
+  const fetchStats = async () => {
+    try {
+      setStatsLoading(true);
+      const token = localStorage.getItem('token'); // JWT token retrieval
+
+      const response = await axios.get('http://localhost:5000/api/stats', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      setStats(response.data);
+      setStatsError(null);
+    } catch (err) {
+      setStatsError(err.response?.data?.message || err.message);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchDashboardData();
     fetchDropdownData();
+    // NEW CHANGE: Triggered fetchStats inside useEffect on component mount
+    fetchStats();
   }, []);
 
   const handleOpenAddProduct = () => {
@@ -144,6 +179,8 @@ const Dashboard = () => {
       setProductFormData(initialProductForm);
       fetchDashboardData();
       fetchDropdownData();
+      // NEW CHANGE: Refresh stats after a new product is added successfully
+      fetchStats();
     } catch (err) {
       console.error('Create product error:', err);
       alert(err.response?.data?.message || 'Failed to create product');
@@ -247,6 +284,8 @@ const Dashboard = () => {
       setOrderFormData(initialOrderForm);
       fetchDashboardData();
       fetchDropdownData();
+      // NEW CHANGE: Refresh stats after a new order is created successfully
+      fetchStats();
     } catch (err) {
       console.error('Create order error:', err);
       alert(err.response?.data?.message || 'Failed to create order');
@@ -298,7 +337,11 @@ const Dashboard = () => {
             <span>Inventory</span>
           </Link>
           <button
-            onClick={fetchDashboardData}
+            onClick={() => {
+              fetchDashboardData();
+              // NEW CHANGE: Added fetchStats inside the refresh button handler
+              fetchStats();
+            }}
             className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
             title="Refresh Data"
           >
@@ -310,6 +353,11 @@ const Dashboard = () => {
 
       <AlertBanner message={error} type="danger" onClose={() => setError(null)} />
       <AlertBanner message={successMsg} type="success" onClose={() => setSuccessMsg(null)} />
+
+      {/* NEW CHANGE: Integrated DashboardStats component to show Total, Active, and Today records */}
+      <div className="mb-4">
+        <DashboardStats stats={stats} loading={statsLoading} error={statsError} />
+      </div>
 
       {/* Seller Category & Store Profile Banner */}
       {!isAdmin && (
@@ -511,7 +559,7 @@ const Dashboard = () => {
                         <span className="fw-bold text-dark" style={{ fontSize: '0.85rem' }}>
                           ₹{prod.price?.toFixed(2)}
                         </span>
-                        <span className="text-muted" style={{ fontSize: '0.75rem' }}>• {prod.category}</span>
+                        <span className="text-muted" style={{ fontSize: '0.75rem' }}>{prod.category}</span>
                       </div>
                     </div>
                     <div className="text-end">

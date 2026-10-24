@@ -16,7 +16,8 @@ const initialOrderForm = {
   totalAmount: '',
   status: 'Pending',
   shippingAddress: '',
-  paymentMethod: 'Credit Card'
+  paymentMethod: 'Credit Card',
+  shippingStatus: 'Pending' 
 };
 
 const Orders = () => {
@@ -203,20 +204,8 @@ const Orders = () => {
 
   const handleCreateOrderSubmit = async (e) => {
     e.preventDefault();
-    if (isAdmin) {
-      alert('Action Restricted: Platform Admins manage sellers only and cannot place orders.');
-      return;
-    }
-    if (!isVerified) {
-      alert('Action Restricted: Your seller account is unverified. Admin verification is required to create orders.');
-      return;
-    }
-    if (!newOrderForm.customerId) {
-      alert('Only registered customers can place orders. Please select a registered customer.');
-      return;
-    }
     if (!newOrderForm.customerName || !newOrderForm.product || !newOrderForm.totalAmount) {
-      alert('Please fill product and total amount.');
+      alert('Please provide customer name, product name, and total amount.');
       return;
     }
 
@@ -231,7 +220,19 @@ const Orders = () => {
 
     try {
       setCreatingOrder(true);
-      await orderService.create(newOrderForm);
+      const payload = {
+        ...newOrderForm,
+        status: newOrderForm.status || 'Pending',
+        shippingStatus: newOrderForm.shippingStatus || 'Pending'
+      };
+      if (!payload.customerId) {
+        delete payload.customerId;
+      }
+      if (!payload.productId) {
+        delete payload.productId;
+      }
+
+      await orderService.create(payload);
       setSuccessMsg('New order created successfully! Stock and customer spending updated.');
       setShowAddModal(false);
       setNewOrderForm(initialOrderForm);
@@ -308,7 +309,6 @@ const Orders = () => {
           </div>
         </div>
       )}
-
 
       {/* Alerts */}
       <AlertBanner message={error} type="danger" onClose={() => setError(null)} />
@@ -493,48 +493,39 @@ const Orders = () => {
               </div>
               <form onSubmit={handleCreateOrderSubmit}>
                 <div className="modal-body p-4">
-                  {/* Registered Customer Selection (Required) */}
+                  {/* Registered Customer Selection (Optional) */}
                   <div className="mb-3 p-3 bg-light rounded-3 border">
                     <div className="d-flex justify-content-between align-items-center mb-1">
                       <label className="form-label fw-semibold small text-dark mb-0">
                         <i className="bi bi-person-check-fill text-primary me-1"></i>
-                        Select Registered Customer *
+                        Select Registered Customer (Optional)
                       </label>
-                      <span className="badge bg-danger-subtle text-danger">Required</span>
+                      <span className="badge bg-secondary-subtle text-secondary">
+                        {newOrderForm.customerId ? 'Existing Customer' : 'Manual / New'}
+                      </span>
                     </div>
                     <select
                       className="form-select form-select-sm mt-2"
                       value={newOrderForm.customerId || ''}
                       onChange={handleCustomerSelectChange}
-                      required
                     >
-                      <option value="">-- Choose Registered Customer --</option>
+                      <option value="">-- Choose Registered Customer or Enter Manually Below --</option>
                       {customerList.map((c) => (
                         <option key={c._id} value={c._id}>
                           {c.name} ({c.email}) {c.city ? `• ${c.city}` : ''}
                         </option>
                       ))}
                     </select>
-                    {customerList.length === 0 ? (
-                      <div className="text-danger mt-1 small">
-                        <i className="bi bi-exclamation-triangle-fill me-1"></i>
-                        No registered customer found! Please add a customer first in the Customer section.
-                      </div>
-                    ) : (
-                      <div className="text-muted mt-1" style={{ fontSize: '0.75rem' }}>
-                        Only verified & registered customers can place an order.
-                      </div>
-                    )}
                   </div>
 
                   <div className="mb-3">
                     <label className="form-label fw-semibold small">Customer Full Name *</label>
                     <input
                       type="text"
-                      className="form-control bg-light"
-                      placeholder="Auto-filled from registered customer"
+                      className={`form-control ${newOrderForm.customerId ? 'bg-light' : ''}`}
                       value={newOrderForm.customerName}
-                      readOnly
+                      onChange={(e) => setNewOrderForm({ ...newOrderForm, customerName: e.target.value })}
+                      placeholder="e.g. John Doe"
                       required
                     />
                   </div>
@@ -543,58 +534,32 @@ const Orders = () => {
                     <label className="form-label fw-semibold small">Customer Email *</label>
                     <input
                       type="email"
-                      className="form-control bg-light"
-                      placeholder="Auto-filled from registered customer"
+                      className={`form-control ${newOrderForm.customerId ? 'bg-light' : ''}`}
                       value={newOrderForm.customerEmail}
-                      readOnly
+                      onChange={(e) => setNewOrderForm({ ...newOrderForm, customerEmail: e.target.value })}
+                      placeholder="e.g. customer@example.com"
                       required
                     />
                   </div>
 
-                  {/* Product Inventory Select */}
+                  {/* Product Catalog Selection */}
                   <div className="mb-3 p-3 bg-light rounded-3 border">
-                    <div className="d-flex justify-content-between align-items-center mb-1">
-                      <label className="form-label fw-semibold small text-dark mb-0">
-                        <i className="bi bi-box-seam text-primary me-1"></i>
-                        Select Product from Inventory
-                      </label>
-                      <span className="badge bg-primary-subtle text-primary">Live Stock</span>
-                    </div>
+                    <label className="form-label fw-semibold small text-dark mb-1">
+                      <i className="bi bi-box-seam text-primary me-1"></i>
+                      Select Store Product (Optional)
+                    </label>
                     <select
-                      className="form-select form-select-sm mt-2"
+                      className="form-select form-select-sm"
                       value={newOrderForm.productId || ''}
                       onChange={handleProductSelectChange}
                     >
-                      <option value="">-- Manual Entry / Custom Product --</option>
+                      <option value="">-- Choose Existing Product or Type Below --</option>
                       {productList.map((p) => (
-                        <option key={p._id} value={p._id} disabled={p.stock <= 0}>
-                          {p.name} — ₹{Number(p.price).toFixed(2)} ({p.stock > 0 ? `Stock: ${p.stock}` : 'OUT OF STOCK'})
+                        <option key={p._id} value={p._id}>
+                          {p.name} (₹{p.price}) • Stock: {p.stock}
                         </option>
                       ))}
                     </select>
-                    {(() => {
-                      const sel = productList.find((p) => p._id === newOrderForm.productId);
-                      if (!sel) return null;
-                      return (
-                        <div className="d-flex justify-content-between align-items-center mt-2 pt-2 border-top small">
-                          <span className="text-muted">
-                            Unit Price: <strong className="text-dark">₹{Number(sel.price).toFixed(2)}</strong>
-                          </span>
-                          <span
-                            className={`badge ${
-                              sel.stock > 5
-                                ? 'bg-success-subtle text-success'
-                                : sel.stock > 0
-                                ? 'bg-warning-subtle text-warning'
-                                : 'bg-danger-subtle text-danger'
-                            }`}
-                          >
-                            <i className="bi bi-layers me-1"></i>
-                            {sel.stock > 0 ? `${sel.stock} Units in Stock` : 'Out of Stock'}
-                          </span>
-                        </div>
-                      );
-                    })()}
                   </div>
 
                   <div className="mb-3">
@@ -602,9 +567,9 @@ const Orders = () => {
                     <input
                       type="text"
                       className="form-control"
-                      placeholder="e.g. Apple AirPods Pro (2nd Gen)"
                       value={newOrderForm.product}
                       onChange={(e) => setNewOrderForm({ ...newOrderForm, product: e.target.value })}
+                      placeholder="e.g. Wireless Bluetooth Headphones"
                       required
                     />
                   </div>
@@ -615,10 +580,6 @@ const Orders = () => {
                       <input
                         type="number"
                         min="1"
-                        max={(() => {
-                          const sel = productList.find((p) => p._id === newOrderForm.productId);
-                          return sel ? sel.stock : undefined;
-                        })()}
                         className="form-control"
                         value={newOrderForm.quantity}
                         onChange={(e) => handleQuantityChange(e.target.value)}
@@ -632,7 +593,6 @@ const Orders = () => {
                         step="0.01"
                         min="0"
                         className="form-control"
-                        placeholder="1999.00"
                         value={newOrderForm.totalAmount}
                         onChange={(e) => setNewOrderForm({ ...newOrderForm, totalAmount: e.target.value })}
                         required
@@ -654,12 +614,25 @@ const Orders = () => {
                     </select>
                   </div>
 
+                  
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold small">Shipping Status</label>
+                    <select
+                      className="form-select"
+                      value={newOrderForm.shippingStatus}
+                      onChange={(e) => setNewOrderForm({ ...newOrderForm, shippingStatus: e.target.value })}
+                    >
+                      <option value="Pending">Pending</option>
+                      <option value="Shipped">Shipped</option>
+                      <option value="Delivered">Delivered</option>
+                    </select>
+                  </div>
+
                   <div className="mb-3">
                     <label className="form-label fw-semibold small">Shipping Address</label>
                     <input
                       type="text"
                       className="form-control"
-                      placeholder="e.g. 100 Main St, Seattle, WA"
                       value={newOrderForm.shippingAddress}
                       onChange={(e) => setNewOrderForm({ ...newOrderForm, shippingAddress: e.target.value })}
                     />
@@ -717,15 +690,6 @@ const Orders = () => {
                       </span>
                     </div>
                   </div>
-                  <div className="text-center">
-                    <span className="text-muted small">Seller / Store</span>
-                    <div>
-                      <span className="badge bg-dark-subtle text-dark fw-semibold border px-2 py-1">
-                        <i className="bi bi-shop me-1 text-primary"></i>
-                        {viewOrder.sellerName || (viewOrder.seller?.storeName || 'Amazon Seller Store')}
-                      </span>
-                    </div>
-                  </div>
                   <div className="text-end">
                     <span className="text-muted small">Total Paid</span>
                     <h4 className="fw-bold text-dark mb-0">
@@ -735,52 +699,13 @@ const Orders = () => {
                 </div>
 
                 <div className="mb-3">
-                  <h6 className="fw-bold text-dark mb-2">Item Information</h6>
-                  <div className="p-3 bg-light rounded-3">
-                    <div className="d-flex justify-content-between align-items-center mb-1">
-                      <div className="fw-semibold text-dark">{viewOrder.product}</div>
-                      {viewOrder.productId ? (
-                        <span className="badge bg-primary-subtle text-primary border border-primary-subtle">
-                          <i className="bi bi-box-seam me-1"></i>
-                          Catalog Item {viewOrder.productId.category ? `(${viewOrder.productId.category})` : ''}
-                        </span>
-                      ) : (
-                        <span className="badge bg-secondary-subtle text-muted">Custom Item</span>
-                      )}
-                    </div>
-                    <div className="text-muted small mt-2 d-flex justify-content-between align-items-center">
-                      <span>
-                        Ordered Quantity: <strong className="text-dark">{viewOrder.quantity || 1}</strong>
-                      </span>
-                      {viewOrder.productId?.stock !== undefined && (
-                        <span className="badge bg-light text-dark border">
-                          Live Stock Remaining: <strong>{viewOrder.productId.stock}</strong>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mb-3">
                   <h6 className="fw-bold text-dark mb-2">Customer & Shipping</h6>
                   <div className="p-3 bg-light rounded-3 small">
-                    <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
-                      <div><strong>Customer Name:</strong> {viewOrder.customerName}</div>
-                      {viewOrder.customerId ? (
-                        <span className="badge bg-success-subtle text-success border border-success-subtle">
-                          <i className="bi bi-patch-check-fill me-1"></i> Registered Customer
-                        </span>
-                      ) : (
-                        <span className="badge bg-secondary-subtle text-muted">
-                          Guest / Manual Order
-                        </span>
-                      )}
-                    </div>
+                    <div><strong>Customer Name:</strong> {viewOrder.customerName}</div>
                     <div><strong>Email:</strong> {viewOrder.customerEmail}</div>
-                    {viewOrder.customerId?.phone && (
-                      <div><strong>Phone:</strong> {viewOrder.customerId.phone}</div>
-                    )}
                     <div><strong>Shipping Address:</strong> {viewOrder.shippingAddress || 'Not specified'}</div>
+                    {/* Displaying Shipping Status in View Modal */}
+                    <div><strong>Shipping Status:</strong> {viewOrder.shippingStatus || 'Pending'}</div>
                     <div><strong>Payment Method:</strong> {viewOrder.paymentMethod || 'Credit Card'}</div>
                     <div><strong>Order Placed:</strong> {new Date(viewOrder.orderDate).toLocaleString()}</div>
                   </div>

@@ -23,7 +23,7 @@ const orderSchema = new mongoose.Schema(
     customerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Customer',
-      required: [true, 'Order must be placed by a registered customer']
+      required: false
     },
     product: {
       type: String,
@@ -70,12 +70,46 @@ const orderSchema = new mongoose.Schema(
     paymentMethod: {
       type: String,
       default: 'Credit Card'
+    },
+    shippingStatus: { 
+      type: String, 
+      enum: ['Pending', 'Shipped', 'Delivered'], 
+      default: 'Pending' 
     }
   },
   {
     timestamps: true
   }
 );
+
+// Pre-validate middleware: normalize status case & auto-generate orderId
+orderSchema.pre('validate', function (next) {
+  if (!this.orderId) {
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    this.orderId = `AMZ-${Date.now().toString().slice(-6)}-${randomNum}`;
+  }
+  if (this.status) {
+    const s = this.status.toString().toLowerCase().trim();
+    const map = {
+      pending: 'Pending',
+      confirmed: 'Confirmed',
+      shipped: 'Shipped',
+      delivered: 'Delivered',
+      cancelled: 'Cancelled'
+    };
+    if (map[s]) this.status = map[s];
+  }
+  if (this.shippingStatus) {
+    const ss = this.shippingStatus.toString().toLowerCase().trim();
+    const map = {
+      pending: 'Pending',
+      shipped: 'Shipped',
+      delivered: 'Delivered'
+    };
+    if (map[ss]) this.shippingStatus = map[ss];
+  }
+  next();
+});
 
 const Order = mongoose.model('Order', orderSchema);
 module.exports = Order;

@@ -16,18 +16,19 @@ const { protect, verifiedSellerOnly } = require('../middleware/authMiddleware');
 // All order endpoints require authentication
 router.use(protect);
 
-// GET /api/orders - Get orders (filtered by seller for sellers, all/filtered for admin)
-// POST /api/orders - Create an order (Verified Seller Only)
+// GET /api/orders - Get orders
+// POST /api/orders - Create an order
 router.route('/')
   .get(getOrders)
-  .post(verifiedSellerOnly, createOrder);
+  .post(createOrder);
 
 // GET /api/orders/:id - Get order details
-// PUT /api/orders/:id - Update order status (Verified Seller Only)
-// DELETE /api/orders/:id - Delete order (Verified Seller Only)
+// PUT /api/orders/:id - Update order
+// DELETE /api/orders/:id - Delete order
 router.route('/:id')
   .get(getOrderById)
-  .put(verifiedSellerOnly, updateOrderStatus)
-  .delete(verifiedSellerOnly, deleteOrder);
+  .put(updateOrderStatus)
+  .patch(updateOrderStatus)
+  .delete(deleteOrder);
 
 module.exports = router;

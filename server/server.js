@@ -15,6 +15,9 @@ const customerRoutes = require('./routes/customerRoutes');
 const salesRoutes = require('./routes/salesRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 
+// NEW CHANGE: Import statsRoutes to handle dashboard statistics API requests
+const statsRoutes = require('./routes/statsRoutes');
+
 // Load environment variables
 dotenv.config();
 
@@ -56,6 +59,9 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/admin', adminRoutes);
+
+// NEW CHANGE: Mount the stats route to fix the '/api/stats' route not found error
+app.use('/api/stats', statsRoutes);
 
 // 404 Not Found Middleware
 app.use((req, res, next) => {
